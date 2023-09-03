@@ -81,10 +81,7 @@ body {
   border-color: transparent;
 }
 
-.square.is-selected {
-  color: #fff;
-  background: #09f;
-}
+
 
 .winner {
   position: absolute;
@@ -129,4 +126,10 @@ body {
   place-items: center;
   cursor: pointer;
   font-size: 48px;
+}
+
+/* Para la X u O que es seleccionado, el turno seleccionado*/
+.square.is-selected {
+  color: #fff;
+  background: #09f;
 }

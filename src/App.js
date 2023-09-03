@@ -1,81 +1,67 @@
 import { useState } from 'react';
 import './App.css';
+import confetti from 'canvas-confetti';
 
-const TURNS = {
-  X: 'x',
-  O: 'o'
-}
+//Importamos constantes
+import { TURNS } from './constantes';
 
-//Para saber si hay un ganador, una de las maneras es guardar todos los combos ganadores en un array
-const WINNER_COMBOS = [
-  [0,1,2],
-  [3,4,5],
-  [6,7,8],
-  [0,3,6],
-  [1,4,7],
-  [2,5,8],
-  [0,4,8],
-  [2,4,6]
-]
+//Importamos componentes
+import { Square } from './components/Square';
+import { checkWinnerFrom, checkEndGame } from './logic/board';
+import { Winner } from './components/Winner';
+
+//Para guardar partida
+import { saveGameToStorage, resetGameStorage } from './logic/storage/storage';
+
+
 
 //tablero
 //const board = Array(9).fill(null); //creo un array de 9 y lo lleno con null, tambien lo podria llenar con bucle for y push
 //al final lo cambio, ya que lo necesito como hook, cambiara su estado
 
-//cuadrado de tablero
-//el children sera lo que tenga dentro del cuadrado, la X o la O
-//updateBoard sera una forma de actualizar el tablero
-//index - para saber ese cuadradito, cual es
-const Square = ({children, isSelected, updateBoard, index}) => {
 
-  const className = `square ${isSelected ? 'is-selected' : ''}`; //le añado la clase square, y ademas si isSelected es true, le añado la className 'is-selected'
-
-  const handleClick = () =>{
-    updateBoard(index);//Le pasamos el index para saber en que cuadradito ha hecho click
-  }
-
-  return(
-    <div onClick={handleClick} className={className}> {/**Uso el className aqui : square y/o is-selected */}
-      {children}
-    </div>
-  )
-}
 
 function App() {
 
   //const [board, serBoard] = useState(['X','X','O','X','O','O','X','O','O']);
 
   //estado inicial del tablero es vacio
-  const [board, setBoard] = useState(Array(9).fill(null));
+  //const [board, setBoard] = useState(Array(9).fill(null));
 
-  //necesito saber en que turno estoy, empieza la X
-  const [turn, setTurn] = useState(TURNS.X);
+  const [board, setBoard] = useState(() => {
+    const boardFromStorage = window.localStorage.getItem('board')
+    if (boardFromStorage) return JSON.parse(boardFromStorage)
+    return Array(9).fill(null)
+  })
+
+  const [turn, setTurn] = useState(() => {
+    const turnFromStorage = window.localStorage.getItem('turn')
+    return turnFromStorage ?? TURNS.X
+  })
 
   //Estado de si hay un ganador
   const [winner, setWinner] = useState(null); //null no hay ganador, false es empate, true hay un ganador
 
-  //Gestionamos el ganador, esto lo tendremos que hacer cuando actualizamos el board
-  const checkWinner = (boardToCheck) =>{
-    for(const combo of WINNER_COMBOS){
-      const [a, b, c] = combo;
-      if(
-        boardToCheck[a] && //si en el 0 hay una x o O
-        boardToCheck[a] === boardToCheck[b] && //si coinciden
-        boardToCheck[a] === boardToCheck[c]){//si se cumplen las 3 condiciones tendriamos un ganador
 
-          return boardToCheck[a]; //nos devuelve X u O, que sera el que haya ganado
-        } else{
-          return null;
-        }
-    }
+  //Resetear juego cuando ha finalizado
+  const resetGame = () =>{
+    //nos tenemos que asegurar de setear los valores a sus valores iniciales
+    setBoard(Array(9).fill(null));
+    setTurn(TURNS.X);
+    setWinner(null);
+
+    resetGameStorage()
   }
 
   //Importante la funcion updateBoard
   //Cuando el usuario hace click, le vamos a pasar el indice para saber en que cuadradito ha hecho click
   const updateBoard = (index) => {
-    //para evitar que se sobreescriva, si en el square ya hay algo, no me dejaria sobreescribir, y si hay un ganador tampoco
-    if(board[index] || winner) return;
+    //para evitar que se sobreescriba, si en el square ya hay algo, no me dejaria sobreescribir, y si hay un ganador tampoco
+    if(board[index] || winner){
+      return;
+    }else{
 
+    
     //Vamos a tener un nuevo board, con una X o un O nuevo
 
     /**
@@ -88,7 +74,7 @@ function App() {
     const newBoard = [...board];//no hay que mutar nunca las props ni el stado, HAY QUE HACER UNA COPIA
 
     //se actualiza la casilla en el newBoard con el valor actual de turn. 
-    newBoard[index] = turn //x u o
+    newBoard[index] = turn; //x u o
 
     //Lo actualizamos
     setBoard(newBoard);
@@ -98,27 +84,35 @@ function App() {
     //Llamamos a setTurn y le pasamos el nuevo valor
     setTurn(newTurn);
 
-    //todo Usaremos un estado para saber si hay un ganador
-    const newWinner = checkWinner(newBoard);
+    // guardar aqui partida
+    saveGameToStorage({
+      board: newBoard,
+      turn: newTurn
+    });
+
+    //Usaremos un estado para saber si hay un ganador
+    const newWinner = checkWinnerFrom(newBoard);
 
     if(newWinner){
-      setWinner(newWinner);
+      setWinner(newWinner); //Asincrono, actualiza el estado, pero no bloquea la ejecucion del codigo que viene despues
+      console.log("Genial, ya hay un ganador: " + turn);
+      confetti();
+    } else if(checkEndGame(newBoard)){
+      setWinner(false);
     }
 
-
-    //todo cuando se acabe la partida y ninguno gane
-
+    }
   }
-
   
 
   return (
     <main className='board'>
        <h1>Tic-Tac-Toe</h1>
+       <button onClick={resetGame}>Empezar nueva partida</button>
         <section className='game'>
 
           {
-            board.map((_,index) => {
+            board.map((square,index) => {
               /**Se utiliza board.map para generar dinámicamente las casillas del tablero. 
                * Cada elemento de la matriz board se asigna a un componente Square, y se le pasa el índice y el valor ({board[index]}) como propiedades. */
               return(
@@ -130,7 +124,7 @@ function App() {
                   key={index}
                   index={index}
                   updateBoard={updateBoard}> 
-                    {board[index]}
+                    {square}
                 </Square>
               );
             })
@@ -140,7 +134,7 @@ function App() {
 
         <section className='turn'>
 
-           {/*vamos a mostrar un square que tenga el turno, aui usamos props, isSelected para saber cual esta seleccionado  */}
+           {/*vamos a mostrar un square que tenga el turno, aqui usamos props, isSelected para saber cual esta seleccionado  */}
 
             <Square isSelected={turn === TURNS.X}>
               {TURNS.X}
@@ -151,8 +145,38 @@ function App() {
             </Square>
 
         </section>
+
+        <Winner resetGame={resetGame} winner={winner}/>
+          {/**Renderizado condicional --> LO HE HECHO EN EL COMPONENTE WINNER
+          
+          {
+            //Si se cumple la condicion de que no es null, me renderizas lo siguiente:
+            winner !== null && (
+              <section className='winner'>
+
+                <div className='text'>
+                  <h2>
+                    {
+                      winner === false ? 'Empate' : 'Ganó'
+                    }
+                  </h2>
+
+                  <header className='win'>
+                      {winner && <Square>{winner}</Square>}
+                  </header>
+
+                  <footer>
+                    <button onClick={resetGame}>Empezar nueva partida</button>
+                  </footer>
+                </div>
+              </section>  
+            )
+          } */}
+
+        
     </main>
   );
 }
 
 export default App;
+//Añadimos confeti: npm install canvas-confetti -E
